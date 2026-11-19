@@ -70,6 +70,12 @@ CREATE TABLE IF NOT EXISTS golpes (
   atualizado_em        TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
+-- Alterações de status causadas pelo golpe (ex.: Swords Dance = Ataque +2 no próprio usuário).
+-- alteracoes NULL = detalhes ainda não buscados com esse campo; [] = golpe não altera status.
+ALTER TABLE golpes ADD COLUMN IF NOT EXISTS alteracoes        JSONB;
+ALTER TABLE golpes ADD COLUMN IF NOT EXISTS alvo_alteracao    VARCHAR(10);  -- 'proprio' | 'alvo'
+ALTER TABLE golpes ADD COLUMN IF NOT EXISTS chance_alteracao  SMALLINT;     -- % (100 = sempre)
+
 -- Quais golpes cada Pokémon pode aprender
 CREATE TABLE IF NOT EXISTS pokemon_golpes (
   pokemon_id  INTEGER NOT NULL REFERENCES pokemon(id) ON DELETE CASCADE,
@@ -102,4 +108,32 @@ CREATE TABLE IF NOT EXISTS time_pokemon_golpes (
   slot             SMALLINT NOT NULL CHECK (slot BETWEEN 1 AND 4),
   PRIMARY KEY (time_pokemon_id, slot),
   UNIQUE (time_pokemon_id, golpe_id)
+);
+
+-- ─── Informações da espécie e evoluções (cache sob demanda) ───
+
+-- Cadeia evolutiva já processada: árvore { id, nome, condicoes: [...], evolui_para: [...] }
+CREATE TABLE IF NOT EXISTS cadeias_evolucao (
+  id             INTEGER PRIMARY KEY,   -- id da evolution-chain na PokéAPI
+  dados          JSONB NOT NULL,
+  atualizado_em  TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS pokemon_especies (
+  pokemon_id     INTEGER PRIMARY KEY REFERENCES pokemon(id) ON DELETE CASCADE,
+  categoria      VARCHAR(60),                  -- "Seed Pokémon"
+  descricao      TEXT,                         -- texto mais recente da Pokédex
+  habilidades    JSONB NOT NULL DEFAULT '[]',  -- [{ nome, oculta }]
+  taxa_captura   SMALLINT,                     -- 3..255 (maior = mais fácil)
+  taxa_genero    SMALLINT,                     -- -1 = sem gênero; 0..8 = oitavos de fêmea
+  felicidade     SMALLINT,
+  passos_ovo     INTEGER,
+  crescimento    VARCHAR(30),
+  habitat        VARCHAR(30),
+  grupos_ovo     JSONB NOT NULL DEFAULT '[]',
+  lendario       BOOLEAN NOT NULL DEFAULT false,
+  mitico         BOOLEAN NOT NULL DEFAULT false,
+  bebe           BOOLEAN NOT NULL DEFAULT false,
+  cadeia_id      INTEGER REFERENCES cadeias_evolucao(id),
+  atualizado_em  TIMESTAMPTZ NOT NULL DEFAULT now()
 );

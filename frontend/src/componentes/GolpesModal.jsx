@@ -1,11 +1,66 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Search, X } from 'lucide-react';
+import { BarChart3, ChevronDown, Search, X } from 'lucide-react';
 import { api } from '../api';
-import { CATEGORIAS, formatarNome } from '../util';
+import { CATEGORIAS, formatarNome, ROTULO_STAT } from '../util';
 import Modal from './Modal';
 import TipoBadge from './TipoBadge';
+import BarrasStats from './BarrasStats';
+import AlteracoesStatus from './AlteracoesStatus';
 
 const MAX = 4;
+const STATS_EFEITO = ['ataque', 'defesa', 'ataque_especial', 'defesa_especial', 'velocidade', 'precisao', 'evasao'];
+
+// Filtro de efeito: "aumenta" (qualquer status seu), "aumenta:<stat>" ou "reduz-alvo"
+function atendeEfeito(g, efeito) {
+  if (!efeito) return true;
+  const alteracoes = g.alteracoes || [];
+  if (efeito === 'reduz-alvo') {
+    return g.alvo_alteracao === 'alvo' && alteracoes.some((a) => a.mudanca < 0);
+  }
+  if (g.alvo_alteracao !== 'proprio') return false;
+  const [, stat] = efeito.split(':');
+  return alteracoes.some((a) => a.mudanca > 0 && (!stat || a.stat === stat));
+}
+
+// Dica de categoria: compara ataque físico x especial
+function dicaCategoria(p) {
+  const diff = p.ataque - p.ataque_especial;
+  if (Math.abs(diff) < 15) return 'Ataque e Ataque Esp. parecidos: golpes físicos e especiais funcionam bem.';
+  return diff > 0
+    ? `Ataque (${p.ataque}) maior que Ataque Esp. (${p.ataque_especial}): prefira golpes físicos.`
+    : `Ataque Esp. (${p.ataque_especial}) maior que Ataque (${p.ataque}): prefira golpes especiais.`;
+}
+
+function PainelStats({ membro }) {
+  const [aberto, setAberto] = useState(true);
+  const { pokemon, tipos } = membro;
+  return (
+    <div className="mb-4 rounded-xl border border-slate-200">
+      <button
+        onClick={() => setAberto(!aberto)}
+        className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm font-semibold text-slate-600 hover:bg-slate-50"
+      >
+        <BarChart3 size={16} />
+        {aberto ? 'Ocultar status' : 'Ver status'} de {formatarNome(pokemon.nome)}
+        <ChevronDown size={16} className={`ml-auto transition ${aberto ? 'rotate-180' : ''}`} />
+      </button>
+      {aberto && (
+        <div className="flex flex-col gap-4 border-t border-slate-100 p-3 sm:flex-row sm:items-center">
+          <div className="flex shrink-0 items-center gap-2 sm:flex-col">
+            <img src={pokemon.artwork_url || pokemon.sprite_url} alt={pokemon.nome} className="h-20 w-20 object-contain" />
+            <div className="flex flex-wrap justify-center gap-1">
+              {tipos.map((t) => <TipoBadge key={t.id} tipo={t} pequeno />)}
+            </div>
+          </div>
+          <div className="min-w-0 flex-1">
+            <BarrasStats pokemon={pokemon} />
+            <p className="mt-2 text-xs text-slate-500">{dicaCategoria(pokemon)}</p>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
 
 export default function GolpesModal({ membro, aoSalvar, aoFechar }) {
   const [golpes, setGolpes] = useState(null);
@@ -13,6 +68,7 @@ export default function GolpesModal({ membro, aoSalvar, aoFechar }) {
   const [busca, setBusca] = useState('');
   const [tipo, setTipo] = useState('');
   const [categoria, setCategoria] = useState('');
+  const [efeito, setEfeito] = useState('');
   const [erro, setErro] = useState('');
   const [salvando, setSalvando] = useState(false);
 
@@ -29,7 +85,8 @@ export default function GolpesModal({ membro, aoSalvar, aoFechar }) {
 
   const filtrados = (golpes || []).filter((g) => {
     const termo = busca.trim().toLowerCase().replace(/\s+/g, '-');
-    return (!termo || g.nome.includes(termo)) && (!tipo || g.tipo?.nome === tipo) && (!categoria || g.categoria === categoria);
+    return (!termo || g.nome.includes(termo)) && (!tipo || g.tipo?.nome === tipo) &&
+      (!categoria || g.categoria === categoria) && atendeEfeito(g, efeito);
   });
 
   function alternar(id) {
@@ -53,6 +110,8 @@ export default function GolpesModal({ membro, aoSalvar, aoFechar }) {
 
   return (
     <Modal titulo={`Golpes de ${formatarNome(membro.pokemon.nome)}`} aoFechar={aoFechar} largura="max-w-3xl">
+      <PainelStats membro={membro} />
+
       <div className="mb-4">
         <p className="mb-2 text-sm font-medium text-slate-600">Escolhidos ({escolhidos.length}/{MAX})</p>
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
@@ -68,6 +127,7 @@ export default function GolpesModal({ membro, aoSalvar, aoFechar }) {
                 <span className="min-w-0">
                   <span className="block truncate font-semibold">{formatarNome(g.nome)}</span>
                   <TipoBadge tipo={g.tipo} pequeno />
+                  <AlteracoesStatus golpe={g} pokemon={membro.pokemon} />
                 </span>
                 <X size={14} className="shrink-0 text-slate-400" />
               </button>
@@ -98,6 +158,12 @@ export default function GolpesModal({ membro, aoSalvar, aoFechar }) {
           <option value="">Todas as categorias</option>
           {Object.entries(CATEGORIAS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
         </select>
+        <select value={efeito} onChange={(e) => setEfeito(e.target.value)} className="rounded-lg border border-slate-300 px-2 text-sm">
+          <option value="">Qualquer efeito</option>
+          <option value="aumenta">Aumenta seus status</option>
+          {STATS_EFEITO.map((s) => <option key={s} value={`aumenta:${s}`}>Aumenta {ROTULO_STAT[s]}</option>)}
+          <option value="reduz-alvo">Reduz status do alvo</option>
+        </select>
       </div>
 
       {!golpes && !erro && <p className="py-6 text-center text-slate-500">Carregando golpes...</p>}
@@ -127,6 +193,15 @@ export default function GolpesModal({ membro, aoSalvar, aoFechar }) {
                     <td className="px-3 py-1.5">
                       <input type="checkbox" readOnly checked={ativo} className="mr-2 accent-red-600" />
                       {formatarNome(g.nome)}
+                      {g.categoria !== 'status' && membro.tipos.some((t) => t.id === g.tipo?.id) && (
+                        <span
+                          className="ml-1.5 rounded bg-amber-100 px-1 py-0.5 text-[10px] font-bold text-amber-800"
+                          title="Mesmo tipo do Pokémon: +50% de dano"
+                        >
+                          STAB
+                        </span>
+                      )}
+                      <AlteracoesStatus golpe={g} pokemon={membro.pokemon} />
                     </td>
                     <td className="px-2 py-1.5"><TipoBadge tipo={g.tipo} pequeno /></td>
                     <td className="hidden px-2 py-1.5 text-slate-500 sm:table-cell">{CATEGORIAS[g.categoria] || '—'}</td>

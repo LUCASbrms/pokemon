@@ -14,10 +14,11 @@ export default function Modal({ titulo, aoFechar, children, largura = 'max-w-2xl
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/50 p-4 sm:items-center"
+      className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/50 p-4"
       onMouseDown={(e) => e.target === e.currentTarget && aoFechar()}
     >
-      <div className={`w-full ${largura} rounded-2xl bg-white shadow-xl`}>
+      {/* my-auto centraliza sem cortar o topo quando o conteúdo é maior que a tela */}
+      <div className={`my-auto w-full ${largura} rounded-2xl bg-white shadow-xl`}>
         <div className="flex items-center justify-between border-b border-slate-200 px-5 py-3">
           <h2 className="text-lg font-bold">{titulo}</h2>
           <button onClick={aoFechar} className="rounded-full p-1 text-slate-500 hover:bg-slate-100" aria-label="Fechar">

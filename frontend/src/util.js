@@ -17,6 +17,19 @@ export const STATS = [
   { chave: 'velocidade', rotulo: 'Velocidade', curto: 'Vel' },
 ];
 
+export const ROTULO_STAT = {
+  ...Object.fromEntries(STATS.map((s) => [s.chave, s.rotulo])),
+  precisao: 'Precisão',
+  evasao: 'Evasão',
+};
+
+// Multiplicador de um estágio de status no jogo: +1 = 1,5x, +2 = 2x, -1 = 0,67x...
+// (precisão e evasão usam base 3 em vez de 2)
+export function multiplicadorEstagio(stat, estagio) {
+  const base = stat === 'precisao' || stat === 'evasao' ? 3 : 2;
+  return estagio >= 0 ? (base + estagio) / base : base / (base - estagio);
+}
+
 export const CATEGORIAS = {
   physical: 'Físico',
   special: 'Especial',

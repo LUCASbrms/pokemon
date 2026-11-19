@@ -55,6 +55,17 @@ describe('pokédex', () => {
     const pedra = r.body.defesa_tipos.find((d) => d.tipo.nome === 'rock');
     expect(pedra.multiplicador).toBe(4);
   });
+
+  test('info mostra habilidades e nível de evolução', async () => {
+    const r = await request(app).get('/api/pokemon/4/info'); // Charmander
+    expect(r.status).toBe(200);
+    expect(r.body.habilidades).toContainEqual({ nome: 'blaze', oculta: false });
+    const charmeleon = r.body.evolucoes.evolui_para[0];
+    expect(charmeleon.nome).toBe('charmeleon');
+    expect(charmeleon.condicoes).toEqual(['Nível 16']);
+    expect(charmeleon.evolui_para[0].condicoes).toEqual(['Nível 36']);
+    expect(charmeleon.sprite_url).toBeTruthy();
+  });
 });
 
 describe('times', () => {
@@ -83,6 +94,10 @@ describe('times', () => {
     const membro = time.membros[0];
     const golpes = (await request(app).get('/api/pokemon/4/golpes')).body;
     const pegar = (nome) => golpes.find((g) => g.nome === nome).id;
+
+    const swordsDance = golpes.find((g) => g.nome === 'swords-dance');
+    expect(swordsDance.alteracoes).toEqual([{ stat: 'ataque', mudanca: 2 }]);
+    expect(swordsDance.alvo_alteracao).toBe('proprio');
     const quatro = ['flamethrower', 'dragon-claw', 'slash', 'scratch'].map(pegar);
 
     const ok = await request(app).put(`/api/times/${timeId}/pokemon/${membro.id}/golpes`).set(auth()).send({ golpes: quatro });

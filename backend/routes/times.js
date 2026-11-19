@@ -42,6 +42,8 @@ async function carregarTimeCompleto(time) {
               SELECT json_agg(json_build_object(
                        'slot', tg.slot, 'id', g.id, 'nome', g.nome, 'categoria', g.categoria,
                        'poder', g.poder, 'precisao', g.precisao, 'pp', g.pp,
+                       'alteracoes', g.alteracoes, 'alvo_alteracao', g.alvo_alteracao,
+                       'chance_alteracao', g.chance_alteracao,
                        'tipo', json_build_object('id', gt.id, 'nome', gt.nome, 'nome_pt', gt.nome_pt)
                      ) ORDER BY tg.slot)
                 FROM time_pokemon_golpes tg

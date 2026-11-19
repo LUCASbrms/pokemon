@@ -186,27 +186,58 @@ async function garantirPokemon(pool, id) {
 
 // ─── Golpes ─────────────────────────────────────────────────
 
+const STATS_GOLPE = {
+  attack: 'ataque', defense: 'defesa', 'special-attack': 'ataque_especial',
+  'special-defense': 'defesa_especial', speed: 'velocidade',
+  accuracy: 'precisao', evasion: 'evasao',
+};
+const ALVOS_PROPRIOS = new Set(['user', 'users-field', 'user-and-allies', 'user-or-ally', 'ally', 'all-allies']);
+
+// Extrai do JSON da PokéAPI quem recebe a alteração de status e com que chance.
+// meta.category diz o efeito: "damage-raise" altera o próprio usuário (Flame Charge,
+// e também Close Combat, que reduz a defesa de quem usa); "damage-lower" afeta o alvo;
+// nos golpes de status, quem recebe é definido pelo target (Swords Dance = user, Growl = oponentes).
+function extrairAlteracoes(dados) {
+  const alteracoes = (dados.stat_changes || [])
+    .filter((c) => STATS_GOLPE[c.stat.name])
+    .map((c) => ({ stat: STATS_GOLPE[c.stat.name], mudanca: c.change }));
+  if (!alteracoes.length) return { alteracoes: [], alvo: null, chance: null };
+
+  const categoriaMeta = dados.meta?.category?.name;
+  let alvo;
+  if (categoriaMeta === 'damage-raise') alvo = 'proprio';
+  else if (categoriaMeta === 'damage-lower' || categoriaMeta === 'swagger') alvo = 'alvo';
+  else alvo = ALVOS_PROPRIOS.has(dados.target?.name) ? 'proprio' : 'alvo';
+
+  // stat_chance 0 em golpes de status significa "sempre"
+  const chance = dados.meta?.stat_chance ? dados.meta.stat_chance : 100;
+  return { alteracoes, alvo, chance };
+}
+
 async function sincronizarGolpe(pool, id, tipoIds) {
   const dados = await buscarJson(`/move/${id}`);
   if (!dados) return null;
+  const { alteracoes, alvo, chance } = extrairAlteracoes(dados);
   await pool.query(
     `UPDATE golpes SET nome = $2, tipo_id = $3, categoria = $4, poder = $5,
-       precisao = $6, pp = $7, detalhes_carregados = true, atualizado_em = now()
+       precisao = $6, pp = $7, alteracoes = $8, alvo_alteracao = $9, chance_alteracao = $10,
+       detalhes_carregados = true, atualizado_em = now()
      WHERE id = $1`,
     [
       id, dados.name, tipoIds[dados.type?.name] ?? null, dados.damage_class?.name ?? null,
-      dados.power, dados.accuracy, dados.pp,
+      dados.power, dados.accuracy, dados.pp, JSON.stringify(alteracoes), alvo, chance,
     ]
   );
   return id;
 }
 
 // Busca os detalhes dos golpes ainda não carregados (lista de ids ou todos).
+// "alteracoes IS NULL" recarrega golpes salvos antes de existir esse campo.
 async function carregarDetalhesGolpes(pool, ids = null, concorrencia = 10) {
+  const pendente = '(NOT detalhes_carregados OR alteracoes IS NULL)';
   const { rows } = ids
-    ? await pool.query(
-        'SELECT id FROM golpes WHERE id = ANY($1::int[]) AND NOT detalhes_carregados', [ids])
-    : await pool.query('SELECT id FROM golpes WHERE NOT detalhes_carregados');
+    ? await pool.query(`SELECT id FROM golpes WHERE id = ANY($1::int[]) AND ${pendente}`, [ids])
+    : await pool.query(`SELECT id FROM golpes WHERE ${pendente}`);
   if (!rows.length) return 0;
   const tipoIds = await mapaTipos(pool);
   await emParalelo(rows.map((r) => r.id), concorrencia, (id) => sincronizarGolpe(pool, id, tipoIds));
@@ -218,10 +249,12 @@ module.exports = {
   TIPOS_PT,
   geracaoPorId,
   idDaUrl,
+  buscarJson,
   emParalelo,
   mapaTipos,
   sincronizarTipos,
   sincronizarPokemon,
   garantirPokemon,
   carregarDetalhesGolpes,
+  extrairAlteracoes,
 };

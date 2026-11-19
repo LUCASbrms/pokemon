@@ -2,6 +2,7 @@ const express = require('express');
 const pool = require('../db');
 const { garantirPokemon, carregarDetalhesGolpes } = require('../services/pokeapi');
 const { multiplicadorContra } = require('../utils/analise');
+const { garantirEspecie } = require('../services/especies');
 
 const router = express.Router();
 
@@ -78,6 +79,43 @@ router.get('/:id', async (req, res) => {
   res.json(pokemon);
 });
 
+// GET /api/pokemon/:id/info — dados da espécie + cadeia evolutiva com sprite/tipos de cada estágio
+router.get('/:id/info', async (req, res) => {
+  const id = parseInt(req.params.id);
+  if (!(await garantirPokemon(pool, id))) return res.status(404).json({ erro: 'Pokémon não encontrado' });
+  if (!(await garantirEspecie(pool, id))) return res.status(404).json({ erro: 'Espécie não encontrada' });
+
+  const { rows } = await pool.query(
+    `SELECT e.*, c.dados AS cadeia
+       FROM pokemon_especies e LEFT JOIN cadeias_evolucao c ON c.id = e.cadeia_id
+      WHERE e.pokemon_id = $1`,
+    [id]
+  );
+  const { cadeia, ...info } = rows[0];
+
+  let evolucoes = null;
+  if (cadeia) {
+    const ids = [];
+    (function coletar(no) { ids.push(no.id); no.evolui_para.forEach(coletar); })(cadeia);
+    for (const pid of ids) await garantirPokemon(pool, pid);
+    const dados = await pool.query(
+      `SELECT p.id, p.sprite_url, p.artwork_url, ${SQL_TIPOS} FROM pokemon p WHERE p.id = ANY($1::int[])`,
+      [ids]
+    );
+    const porId = Object.fromEntries(dados.rows.map((r) => [r.id, r]));
+    const enriquecer = (no) => ({
+      ...no,
+      sprite_url: porId[no.id]?.sprite_url ?? null,
+      artwork_url: porId[no.id]?.artwork_url ?? null,
+      tipos: porId[no.id]?.tipos ?? [],
+      evolui_para: no.evolui_para.map(enriquecer),
+    });
+    evolucoes = enriquecer(cadeia);
+  }
+
+  res.json({ ...info, evolucoes });
+});
+
 // GET /api/pokemon/:id/golpes — golpes que o Pokémon pode aprender (detalhes sob demanda)
 router.get('/:id/golpes', async (req, res) => {
   const id = parseInt(req.params.id);
@@ -88,6 +126,7 @@ router.get('/:id/golpes', async (req, res) => {
 
   const { rows } = await pool.query(
     `SELECT g.id, g.nome, g.categoria, g.poder, g.precisao, g.pp,
+            g.alteracoes, g.alvo_alteracao, g.chance_alteracao,
             json_build_object('id', t.id, 'nome', t.nome, 'nome_pt', t.nome_pt) AS tipo
        FROM pokemon_golpes pg
        JOIN golpes g ON g.id = pg.golpe_id

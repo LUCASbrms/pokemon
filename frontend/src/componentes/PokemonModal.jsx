@@ -7,6 +7,7 @@ import { formatarMultiplicador, formatarNome, numero } from '../util';
 import Modal from './Modal';
 import TipoBadge from './TipoBadge';
 import BarrasStats from './BarrasStats';
+import InfoPokemon, { CadeiaEvolutiva } from './InfoPokemon';
 
 const GRUPOS = [
   { m: 4, rotulo: 'Muito fraco (4x)', cor: 'text-red-700' },
@@ -97,18 +98,29 @@ function AdicionarAoTime({ pokemonId }) {
   );
 }
 
-export default function PokemonModal({ id, aoFechar }) {
+export default function PokemonModal({ id: idInicial, aoFechar }) {
+  // Clicar numa evolução troca o Pokémon mostrado sem fechar o modal
+  const [id, setId] = useState(idInicial);
   const [p, setP] = useState(null);
+  const [info, setInfo] = useState(null);
   const [erro, setErro] = useState('');
+  const [erroInfo, setErroInfo] = useState('');
 
   useEffect(() => {
-    api(`/pokemon/${id}`).then(setP).catch((e) => setErro(e.message));
+    let ativo = true;
+    setErro('');
+    setErroInfo('');
+    setInfo(null);
+    api(`/pokemon/${id}`).then((d) => ativo && setP(d)).catch((e) => ativo && setErro(e.message));
+    api(`/pokemon/${id}/info`).then((d) => ativo && setInfo(d)).catch((e) => ativo && setErroInfo(e.message));
+    return () => { ativo = false; };
   }, [id]);
 
   return (
-    <Modal titulo={p ? `${formatarNome(p.nome)} ${numero(p.id)}` : 'Carregando...'} aoFechar={aoFechar}>
+    <Modal titulo={p ? `${formatarNome(p.nome)} ${numero(p.id)}` : 'Carregando...'} aoFechar={aoFechar} largura="max-w-3xl">
       {erro && <p className="text-red-600">{erro}</p>}
       {p && (
+        <div className="space-y-6">
         <div className="grid gap-6 sm:grid-cols-2">
           <div className="text-center">
             <img src={p.artwork_url || p.sprite_url} alt={p.nome} className="mx-auto h-48 w-48 object-contain" />
@@ -118,6 +130,11 @@ export default function PokemonModal({ id, aoFechar }) {
             <p className="mt-2 text-sm text-slate-500">
               {p.geracao}ª geração · {(p.altura / 10).toFixed(1)} m · {(p.peso / 10).toFixed(1)} kg
             </p>
+            {info?.descricao && (
+              <p className="mt-3 rounded-lg bg-slate-50 px-3 py-2 text-left text-sm italic text-slate-600">
+                “{info.descricao}”
+              </p>
+            )}
           </div>
           <div className="space-y-5">
             <BarrasStats pokemon={p} />
@@ -137,8 +154,24 @@ export default function PokemonModal({ id, aoFechar }) {
               })}
               <p className="text-xs text-slate-400">Os demais tipos causam dano normal ({formatarMultiplicador(1)}).</p>
             </div>
-            <AdicionarAoTime pokemonId={p.id} />
+            <AdicionarAoTime key={p.id} pokemonId={p.id} />
           </div>
+        </div>
+
+        {erroInfo && <p className="text-sm text-red-600">Não foi possível carregar as informações: {erroInfo}</p>}
+        {!info && !erroInfo && <p className="text-center text-sm text-slate-500">Carregando informações...</p>}
+        {info && (
+          <div className="space-y-6 border-t border-slate-200 pt-5">
+            <section className="min-w-0">
+              <h3 className="mb-2 font-semibold">Evoluções</h3>
+              <CadeiaEvolutiva evolucoes={info.evolucoes} atualId={p.id} aoSelecionar={setId} />
+            </section>
+            <section>
+              <h3 className="mb-1 font-semibold">Informações</h3>
+              <InfoPokemon info={info} />
+            </section>
+          </div>
+        )}
         </div>
       )}
     </Modal>
