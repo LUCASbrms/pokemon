@@ -1,6 +1,9 @@
 const BASE = import.meta.env.VITE_API_URL || '/api';
 const CHAVE_TOKEN = 'pokedex_token';
 
+// URL completa de um caminho da API (para <img src>, que não passa pela função api)
+export const urlApi = (caminho) => `${BASE}${caminho}`;
+
 export const tokenSalvo = {
   ler: () => localStorage.getItem(CHAVE_TOKEN),
   salvar: (t) => localStorage.setItem(CHAVE_TOKEN, t),

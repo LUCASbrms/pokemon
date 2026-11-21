@@ -5,6 +5,7 @@ import Pokedex from './paginas/Pokedex';
 import Entrar from './paginas/Entrar';
 import Times from './paginas/Times';
 import TimeEditor from './paginas/TimeEditor';
+import Quiz from './paginas/Quiz';
 
 function RotaPrivada({ children }) {
   const { usuario, carregando } = useAuth();
@@ -33,6 +34,7 @@ function Cabecalho() {
         <nav className="flex gap-1">
           <NavLink to="/" end className={link}>Pokédex</NavLink>
           <NavLink to="/times" className={link}>Meus times</NavLink>
+          <NavLink to="/quiz" className={link}>Quiz</NavLink>
         </nav>
         <div className="ml-auto flex items-center gap-3 text-sm">
           {usuario ? (
@@ -61,6 +63,7 @@ export default function App() {
         <Routes>
           <Route path="/" element={<Pokedex />} />
           <Route path="/entrar" element={<Entrar />} />
+          <Route path="/quiz" element={<Quiz />} />
           <Route path="/times" element={<RotaPrivada><Times /></RotaPrivada>} />
           <Route path="/times/:id" element={<RotaPrivada><TimeEditor /></RotaPrivada>} />
           <Route path="*" element={<Navigate to="/" replace />} />
