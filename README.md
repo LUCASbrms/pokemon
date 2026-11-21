@@ -27,6 +27,23 @@ Testes do backend (precisa do banco sincronizado): `cd backend && npm test`
 
 Conta de teste criada durante o desenvolvimento: `teste@pokedex.test` / `pikachu123`.
 
+## Deploy (Vercel + Neon)
+
+O frontend é servido como site estático e o Express roda como função serverless em `api/index.js` (mesmo `backend/app.js` do dev local). As rotas estão em `vercel.json`: `/api/*` vai para o Express e o resto para o React.
+
+1. **Banco:** crie um projeto no [Neon](https://neon.tech) e copie a connection string.
+2. **Popular o banco** (uma vez, da sua máquina), no PowerShell, dentro de `backend/`:
+   ```powershell
+   $env:DATABASE_URL = "postgresql://...neon.tech/neondb?sslmode=require"
+   npm run db:criar
+   npm run sync
+   Remove-Item Env:DATABASE_URL
+   ```
+3. **Vercel:** importe o repositório (Framework: *Other*; o resto vem do `vercel.json`) e configure as variáveis:
+   - `DATABASE_URL`: connection string do Neon (de preferência a *pooled*, com `-pooler` no host)
+   - `JWT_SECRET`: texto aleatório e longo
+4. Deploy. Cada `git push` na `main` publica de novo.
+
 ## Como funciona o cache
 
 - `npm run sync` popula `tipos`, `tipo_eficacia` (matriz 18×18), `pokemon`, `pokemon_tipos`, `golpes` e `pokemon_golpes` (learnset).

@@ -1,11 +1,17 @@
 const { Pool } = require('pg');
 require('dotenv').config({ quiet: true });
 
-// Aceita DATABASE_URL (nuvem) ou variáveis individuais (dev local)
-const pool = process.env.DATABASE_URL
+const url = process.env.DATABASE_URL;
+
+// Aceita DATABASE_URL (nuvem: Neon) ou variáveis individuais (dev local)
+const pool = url
   ? new Pool({
-      connectionString: process.env.DATABASE_URL,
-      ssl: { rejectUnauthorized: false },
+      connectionString: url,
+      // A URL do Neon já vem com "sslmode=require" (certificado válido); sem isso, SSL sem validar
+      ...(/sslmode=/.test(url) ? {} : { ssl: { rejectUnauthorized: false } }),
+      // Na Vercel cada função tem o próprio pool: poucas conexões, fechando as ociosas rápido
+      max: process.env.VERCEL ? 3 : 10,
+      idleTimeoutMillis: process.env.VERCEL ? 5000 : 10000,
     })
   : new Pool({
       host:     process.env.DB_HOST     || 'localhost',
