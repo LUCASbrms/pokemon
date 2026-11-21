@@ -137,3 +137,31 @@ CREATE TABLE IF NOT EXISTS pokemon_especies (
   cadeia_id      INTEGER REFERENCES cadeias_evolucao(id),
   atualizado_em  TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+
+-- ─── Quiz "Quem é esse Pokémon?" ────────────────────────────
+
+-- Nome da espécie sem a forma ("deoxys-normal" -> "deoxys"), usado para conferir o chute
+ALTER TABLE pokemon ADD COLUMN IF NOT EXISTS nome_especie VARCHAR(60);
+
+-- Cada rodada guarda o Pokémon sorteado no servidor: o navegador só recebe um id aleatório,
+-- assim não dá para descobrir a resposta olhando a URL da imagem.
+CREATE TABLE IF NOT EXISTS quiz_rodadas (
+  id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  pokemon_id  INTEGER  NOT NULL REFERENCES pokemon(id),
+  usuario_id  INTEGER  REFERENCES usuarios(id) ON DELETE CASCADE,  -- NULL = jogando sem login
+  modo        VARCHAR(10) NOT NULL CHECK (modo IN ('facil', 'dificil')),
+  sequencia   INTEGER  NOT NULL DEFAULT 0,   -- acertos seguidos antes desta rodada
+  respondida  BOOLEAN  NOT NULL DEFAULT false,
+  acertou     BOOLEAN,
+  criado_em   TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_quiz_rodadas_criado ON quiz_rodadas (criado_em);
+
+CREATE TABLE IF NOT EXISTS quiz_placar (
+  usuario_id      INTEGER PRIMARY KEY REFERENCES usuarios(id) ON DELETE CASCADE,
+  acertos         INTEGER NOT NULL DEFAULT 0,
+  erros           INTEGER NOT NULL DEFAULT 0,
+  melhor_dificil  INTEGER NOT NULL DEFAULT 0,  -- maior sequência digitando o nome (vale para o ranking)
+  melhor_facil    INTEGER NOT NULL DEFAULT 0,  -- maior sequência na múltipla escolha
+  atualizado_em   TIMESTAMPTZ NOT NULL DEFAULT now()
+);

@@ -184,6 +184,24 @@ async function garantirPokemon(pool, id) {
   return Boolean(await sincronizarPokemon(pool, id));
 }
 
+// Preenche pokemon.nome_especie com uma única chamada (a lista de espécies tem o mesmo id do Pokémon padrão)
+async function garantirNomesEspecies(pool) {
+  const { rowCount } = await pool.query('SELECT 1 FROM pokemon WHERE nome_especie IS NULL LIMIT 1');
+  if (!rowCount) return 0;
+  const lista = await buscarJson(`/pokemon-species?limit=${TOTAL_POKEMON}`);
+  const ids = lista.results.map((r) => idDaUrl(r.url));
+  const nomes = lista.results.map((r) => r.name);
+  const r = await pool.query(
+    `UPDATE pokemon p SET nome_especie = e.nome
+       FROM unnest($1::int[], $2::text[]) AS e(id, nome)
+      WHERE p.id = e.id AND p.nome_especie IS DISTINCT FROM e.nome`,
+    [ids, nomes]
+  );
+  // Se sobrou algum sem espécie na lista, usa o próprio nome
+  await pool.query('UPDATE pokemon SET nome_especie = nome WHERE nome_especie IS NULL');
+  return r.rowCount;
+}
+
 // ─── Golpes ─────────────────────────────────────────────────
 
 const STATS_GOLPE = {
@@ -255,6 +273,7 @@ module.exports = {
   sincronizarTipos,
   sincronizarPokemon,
   garantirPokemon,
+  garantirNomesEspecies,
   carregarDetalhesGolpes,
   extrairAlteracoes,
 };

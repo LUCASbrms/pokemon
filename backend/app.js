@@ -3,6 +3,7 @@ const cors = require('cors');
 require('dotenv').config({ quiet: true });
 
 const { autenticar } = require('./middleware/auth');
+const { autenticarOpcional } = require('./middleware/authOpcional');
 
 const app = express();
 app.use(cors());
@@ -14,6 +15,9 @@ app.get('/api/saude', (req, res) => res.json({ ok: true }));
 app.use('/api/auth',    require('./routes/auth'));
 app.use('/api/tipos',   require('./routes/tipos'));
 app.use('/api/pokemon', require('./routes/pokemon'));
+
+// Quiz: funciona sem login; com login salva o placar
+app.use('/api/quiz', autenticarOpcional, require('./routes/quiz'));
 
 // Rotas que exigem login
 app.use('/api/times', autenticar, require('./routes/times'));
